@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-canvas_fuzzy_finder.py - fuzzy-search a Canvas LMS course export (course-data.js).
+canvas_find.py - fuzzy-search a Canvas LMS course export (course-data.js).
 
 Usage:
-    python canvas_fuzzy_finder.py -s "data collection" ~/courses/DIG202
-    python canvas_fuzzy_finder.py -s "consent" -b 2 -a 3 ~/courses/DIG202
-    python canvas_fuzzy_finder.py ~/courses/DIG202          # interactive mode
+    python canvas_find.py -s "data collection" ~/courses/DIG202
+    python canvas_find.py -s "consent" -b 2 -a 3 ~/courses/DIG202
+    python canvas_find.py ~/courses/DIG202          # interactive mode
 
 The last argument is the export's root folder; the data file is expected at
 <root>/viewer/course-data.js. (A direct path to a .js file also works.)

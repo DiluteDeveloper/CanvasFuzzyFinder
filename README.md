@@ -1,22 +1,33 @@
-# course_search
+# CanvasFuzzyFinder
 
 Fuzzy-search the text of an offline **Canvas LMS course export**.
+This has only been tested on UniSC Canvas module pages.
+Disclaimer: **This tool is in no way affiliated with the University of
+the Sunshine Coast**
+This tool and the following documentation was entirely created with Claude;
+I have been in software engineering since 2018 and I have the experience 
+to develop a tool like this, however, as this is a tool I am personally 
+needing to use quickly, I made the choice to vibe-code it.
+With that being said, please do not consider the quality of this tool
+a reflection of my abilities; this is simply posted so that others may
+use it; I have not checked over this code at all and am simply using
+the tool that Claude generated with my prompts and guidance.
 
 Point it at the export's root folder, type something (typos are fine), and it
 shows you every matching line along with the **module** and **page** it came
 from, plus as much surrounding context as you ask for.
 
 ```
-$ python course_search.py -s "consent and transparency" -b 1 -a 1 ~/courses/DIG202
+$ python canvas_find.py -s "consent and transparency" -b 1 -a 1 ~/courses/ICT101
 
 1 matching line across 1 page
 
 [1] Module 2 Data collection  ›  Module 2.2: Data collection considerations   (score 100)
        …
     9  Accuracy: To reduce bias and errors, make sure data is gathered accurately.
- > 10  Consent and Transparency: Let people know what information is being gathered and how it will
-       be utilized.
-   11  Security and privacy: Prevent unwanted access to private and sensitive data.
+ > 10  Consent and Transparency: Let people know about information being collected and how 
+       to utilize it.
+   11  Security and privacy: Prevent unwanted access to sensitive data.
        …
 ```
 
@@ -47,11 +58,18 @@ support (Windows Terminal, PowerShell 7); otherwise add `--no-color`.
 
 ## Quick start
 
+Firstly, you need to go to the UniSC canvas modules page of the course
+that you wish to fuzzy search, and click on "Export Course Content" in
+the top right corner. This will generate the files that this tool
+needs to search through. Once it is downloaded, extract the zip
+archive with your tool of choice and the resulting folder is passed to
+the tool as the **root folder** of the export.
+
 The tool expects the **root folder** of the export, which must contain
 `viewer/course-data.js`:
 
 ```
-DIG202/                   <- this is the folder you pass in
+ICT101/                   <- this is the folder you pass in
 └── viewer/
     ├── course-data.js    <- the data file the tool reads
     └── files/ ...
@@ -60,20 +78,20 @@ DIG202/                   <- this is the folder you pass in
 Run one search and exit:
 
 ```bash
-python course_search.py -s "sampling strategies" path/to/DIG202
+python canvas_find.py -s "sampling strategies" path/to/ICT101
 ```
 
 Or start an interactive session and search as many times as you like:
 
 ```bash
-python course_search.py path/to/DIG202
+python canvas_find.py path/to/ICT101
 ```
 
 ## Usage
 
 ```
-course_search.py [-s STRING] [-b N] [-a N] [-n N] [-t SCORE] [--no-color] ROOT
-course_search.py -h
+canvas_find.py [-s STRING] [-b N] [-a N] [-n N] [-t SCORE] [--no-color] ROOT
+canvas_find.py -h
 ```
 
 `ROOT` must be the **last** argument.
@@ -125,7 +143,7 @@ in interactive mode.
 A typical session:
 
 ```
-$ python course_search.py path/to/DIG202
+$ python canvas_find.py path/to/ICT101
 Loaded 95 pages. Type a search, or :help for commands.
 
 search> sampling
@@ -234,38 +252,38 @@ usually more specific than a long paragraph containing the same words.
 Search for a phrase, tolerating typos:
 
 ```bash
-python course_search.py -s "data colection considerations" ~/courses/DIG202
+python canvas_find.py -s "data colection considerations" ~/courses/ICT101
 ```
 
 Show two lines before and three after each match:
 
 ```bash
-python course_search.py -s "consent and transparency" -b 2 -a 3 ~/courses/DIG202
+python canvas_find.py -s "consent and transparency" -b 2 -a 3 ~/courses/ICT101
 ```
 
 Find a page by its title:
 
 ```bash
-python course_search.py -s "Module 2.2" -n 3 ~/courses/DIG202
+python canvas_find.py -s "Module 2.2" -n 3 ~/courses/ICT101
 ```
 
 Be more forgiving and show more results:
 
 ```bash
-python course_search.py -s "dashbord" -t 70 -n 25 ~/courses/DIG202
+python canvas_find.py -s "dashbord" -t 70 -n 25 ~/courses/ICT101
 ```
 
 Page through a long result set (best result last; press `G` in `less` to jump
 to it):
 
 ```bash
-python course_search.py -s "data" -n 100 --no-color ~/courses/DIG202 | less
+python canvas_find.py -s "data" -n 100 --no-color ~/courses/ICT101 | less
 ```
 
 Use it in a script (the exit status tells you whether anything matched):
 
 ```bash
-if python course_search.py -s "privacy" --no-color ~/courses/DIG202 > /dev/null; then
+if python canvas_find.py -s "privacy" --no-color ~/courses/ICT101 > /dev/null; then
     echo "mentioned somewhere"
 fi
 ```
