@@ -3,9 +3,9 @@
 canvas_find.py - fuzzy-search a Canvas LMS course export (course-data.js).
 
 Usage:
-    python canvas_find.py -s "data collection" ~/courses/DIG202
-    python canvas_find.py -s "consent" -b 2 -a 3 ~/courses/DIG202
-    python canvas_find.py ~/courses/DIG202          # interactive mode
+    python canvas_find.py -s "soil" my_gardening_course_example/
+    python canvas_find.py -s "dirt" -b 2 -a 3 my_gardening_course_example/
+    python canvas_find.py my_gardening_course_example/          # interactive mode
 
 The last argument is the export's root folder; the data file is expected at
 <root>/viewer/course-data.js. (A direct path to a .js file also works.)
