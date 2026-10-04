@@ -8,7 +8,11 @@ This has only been tested on UniSC Canvas module pages.
 
 Point it at the export's root folder, type something (typos are fine), and it
 shows you every matching line along with the **module** and **page** it came
-from, plus as much surrounding context as you ask for.
+from, plus as much surrounding context as you ask for. You can also drop your
+own files to include in the search with [`-i`](#extra-text-files) to have them searched too.
+Extra files functionality was added primarily for searching through
+transcripts of Canvas videos, which you can download on the Canvas
+site in the top right corner of the video on the 3 dots icon.
 
 ```
 $ python canvas_find.py -s "soil" -b 1 -a 1 -n 2 my_gardening_course_example/
@@ -35,6 +39,7 @@ $ python canvas_find.py -s "soil" -b 1 -a 1 -n 2 my_gardening_course_example/
 - [Usage](#usage)
 - [Options](#options)
 - [Interactive mode](#interactive-mode)
+- [Extra text files](#extra-text-files)
 - [Reading the output](#reading-the-output)
 - [How it works](#how-it-works)
 - [Examples](#examples)
@@ -89,7 +94,7 @@ python canvas_find.py my_gardening_course_example/
 ## Usage
 
 ```
-canvas_find.py [-s STRING] [-b N] [-a N] [-n N] [-t SCORE] [--no-color] ROOT
+canvas_find.py [-s STRING] [-i DIR] [-b N] [-a N] [-n N] [-t SCORE] [--no-color] ROOT
 canvas_find.py -h
 ```
 
@@ -107,8 +112,9 @@ If `-s` is given, one search is run and the program exits. If `-s` is omitted,
 | Option | Default | Description |
 | --- | --- | --- |
 | `-s`, `--string STRING` | *(interactive)* | Text to search for. Case-insensitive. |
-| `-b`, `--before N` | `0` | Lines of context to show **before** each match. |
-| `-a`, `--after N` | `0` | Lines of context to show **after** each match. |
+| `-i`, `--include DIR` | *(none)* | Also search every `.txt` file in the folder `DIR`. Results from these show the filename instead of a module name. See [Extra text files](#extra-text-files). |
+| `-b`, `--before N` | `0` | Lines of context to show **before** each match. This acts as `x*10` words before instead for extra included files. |
+| `-a`, `--after N` | `0` | Lines of context to show **after** each match. This acts as `x*10` words after instead for extra included files. |
 | `-n`, `--max-results N` | `10` | Maximum number of matching lines to show. The highest-scoring ones are kept, and the total found is always reported. |
 | `-t`, `--threshold SCORE` | `80` | Minimum score (0–100) for a line to count as a match. **Lower is fuzzier**: more results, looser matches. `100` means exact substring matches only. |
 | `--no-color` | off | Disable ANSI colour. Colour is also off automatically when output is piped or redirected, or when the `NO_COLOR` environment variable is set. |
@@ -156,6 +162,44 @@ search> soil
 search> :q
 ```
 
+## Extra text files
+
+You can add your own text to the search, such as notes or text copied out of
+slides, PDFs and other attachments (which are otherwise [not
+searched](#limitations-and-tips)). Put `.txt` files in any folder and pass it
+with `-i`:
+
+```bash
+python canvas_find.py -s "soil" -i my_notes/ my_gardening_course_example/
+```
+
+- Every `*.txt` file directly inside the folder is searched (the extension is
+  case-insensitive). Subfolders and other file types are ignored. A leading `~`
+  is expanded.
+- The folder can be anywhere; it doesn't have to be inside the export.
+- Files are read as UTF-8. Invalid bytes are replaced rather than causing an
+  error. A file that can't be read is skipped with a warning on stderr.
+- Each line of the file is one searchable line. Runs of whitespace are
+  collapsed and blank lines are dropped, so **line numbers count non-empty
+  lines only**, starting at 0.
+- Results from these files show the **filename instead of a module name**, and
+  no page title:
+
+  ```
+  [1] week1_slides.txt   (score 100)
+        …
+   > 12  Soil pH should be around 6.5
+        …
+  ```
+- The filename itself is not searched, and these files are counted as pages in
+  the summary line. In interactive mode the startup line reports them
+  separately, for example `Loaded 95 pages + 2 extra files.`
+- `-i` can be given once. If the folder doesn't exist the tool exits with
+  code 2. If it contains no non-empty `.txt` files, you get a warning and the
+  search carries on with the export alone.
+- The folder is read when the tool starts. Restart interactive mode to pick up
+  new or edited files.
+
 ## Reading the output
 
 A summary line comes first: how many lines matched, how many are being shown,
@@ -173,7 +217,9 @@ and across how many pages. Then come the results, in **blocks**.
 - **Order:** blocks are printed from **worst to best**, so the best result is
   the last thing on screen, right above your prompt. The rank numbers count
   down as you scroll toward it.
-- **Header:** `Module name  ›  Page title`, then the block's best score.
+- **Header:** `Module name  ›  Page title`, then the block's best score. For a
+  result from an [extra text file](#extra-text-files) the header is just the
+  filename.
 - **`>`** in the left margin marks a matching line, shown in bold. On a colour
   terminal, the part of the line that matched is highlighted too, even when it
   matched despite a typo. Lines without `>` are context and are dimmed.
@@ -199,6 +245,9 @@ this order:
    `Pages (not in a module)`.
 3. **Assignments**, **Discussions**, and **Quizzes**, which Canvas stores
    separately from modules.
+
+4. Any `.txt` files in the folder given with `-i` (see
+   [Extra text files](#extra-text-files)), labelled with their filename.
 
 Each page is searched once. Items are de-duplicated by their Canvas
 `exportId`, so a page listed both in a module and in the page list isn't
@@ -279,15 +328,17 @@ python canvas_find.py -s "dashbord" -t 70 -n 25 my_gardening_course_example/
 | --- | --- |
 | `0` | At least one match was found, or interactive mode ended normally |
 | `1` | A search was given with `-s` and nothing matched |
-| `2` | The data file couldn't be found or read, it had no usable pages, or the command line was invalid |
+| `2` | The data file couldn't be found or read, there were no usable pages or included text files, the `-i` folder doesn't exist, or the command line was invalid |
 
 If you pipe output into something that exits early (`head`, quitting `less`),
 the tool stops quietly with no error message.
 
 ## Limitations and tips
 
-- **Only text inside `course-data.js` is searched.** The contents of attached
-  files (slides, PDFs, spreadsheets) and of images are not included.
+- **Only text inside `course-data.js` and any `.txt` files given with `-i` is searched.**
+  The contents of attached files (slides, PDFs, spreadsheets) and of images are
+  not included unless you copy their text into an
+  [`.txt` file](#extra-text-files) yourself.
 - **Matching is one line at a time.** A phrase split across two paragraphs, list
   items, or table rows won't match as a whole. Search a shorter piece of it, or
   use `-b`/`-a` to see the neighbouring lines.
@@ -308,7 +359,11 @@ the tool stops quietly with no error message.
 | `python is not recognized as an internal or external command, operable program or batch file.` | Python may not been installed correctly. on some systems, the command may be `python3` instead. |
 | `'...' does not exist.` | The path is wrong or misspelled. |
 | `Could not find a JSON object in ...` | The file isn't in the expected `window.COURSE_DATA = {...};` format, or is truncated or corrupt. |
-| `no pages with content found in that file.` | The JSON loaded but has no pages with a `title` and `content`. |
+| `no pages with content found in that file (and no included .txt files).` | The JSON loaded but has no pages with a `title` and `content`, and no `-i` text files were added. |
+| `'...' (from -i) is not a folder.` | The path given to `-i` doesn't exist or is a file. Pass the folder containing the `.txt` files. |
+| `Warning: no non-empty .txt files found in ...` | The `-i` folder has no `.txt` files with content. Check the extension and that the files aren't empty. |
+| `Warning: skipping .../xyz.txt: ...` | An extra file couldn't be read (permissions, etc.). The other files are still searched. |
+| Included file not showing up | It must be directly in the `-i` folder (not a subfolder), end in `.txt`, and contain at least one non-blank line. |
 | `the following arguments are required: ROOT` | You forgot the folder argument. It must come last. |
 | Garbled characters (for example `â€º` instead of `›`) | The tool always writes UTF-8, so your terminal is set to a different encoding. Switch the terminal to UTF-8. |
 | `No matches.` | Nothing scored at or above the threshold. Lower `-t` or shorten the query. |

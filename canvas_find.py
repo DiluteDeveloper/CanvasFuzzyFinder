@@ -15,6 +15,10 @@ item's HTML is converted to plain text lines, and every line is fuzzy-matched
 against your query. Results show the module and page the line came from,
 plus optional context lines before/after.
 
+Optional extras: -i DIR also searches every file in DIR.
+Results from those files show the filename instead of a module name, and
+-b / -a count words (N x 10) around the match instead of lines.
+
 No third-party packages are required. If `rapidfuzz` is installed
 (pip install rapidfuzz) it is used automatically and is much faster.
 """
@@ -44,7 +48,6 @@ except ImportError:  # pragma: no cover
 # --------------------------------------------------------------------------
 
 DATA_RELPATH = os.path.join("viewer", "course-data.js")
-
 
 def resolve_data_file(root: str) -> str:
     """Turn the user's argument into the path of course-data.js.
@@ -231,6 +234,39 @@ def build_entries(data) -> list[Entry]:
     return entries
 
 
+def load_extra_entries(extra_dir: str) -> list[Entry]:
+    """One Entry per .txt file in extra_dir (not recursive).
+
+    The filename takes the place of the module name; there is no page title.
+    Blank lines are dropped, so line numbers count non-empty lines only.
+    """
+    extra_dir = os.path.expanduser(extra_dir)
+    if not os.path.isdir(extra_dir):
+        raise ValueError(f"'{extra_dir}' (from -i) is not a folder.")
+    entries: list[Entry] = []
+    for name in sorted(os.listdir(extra_dir), key=str.lower):
+        path = os.path.join(extra_dir, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8-sig", errors="replace") as f:
+                text = f.read()
+        except OSError as err:
+            print(f"Warning: skipping {path}: {err}", file=sys.stderr)
+            continue
+        lines = []
+        for raw in text.splitlines():
+            line = re.sub(r"\s+", " ", raw.replace("\xa0", " ")).strip()
+            if line:
+                lines.append(line)
+        if lines:
+            entries.append(Entry(module=name, title="", kind="Extra", lines=lines))
+    if not entries:
+        print(f"Warning: no non-empty files found in {extra_dir}",
+              file=sys.stderr)
+    return entries
+
+
 # --------------------------------------------------------------------------
 # Fuzzy matching
 # --------------------------------------------------------------------------
@@ -336,6 +372,133 @@ def build_blocks(entries, hits, before, after) -> list[Block]:
     return blocks
 
 
+# Files from -i get word-based context instead of line-based context:
+# -b N / -a N mean N * WORDS_PER_UNIT words before/after the match.
+WORDS_PER_UNIT = 10
+
+
+@dataclass
+class Word:
+    line: int
+    start: int
+    end: int
+    text: str
+
+
+@dataclass
+class WordBlock:
+    entry: int
+    lo: int          # index of first word shown
+    hi: int          # index of last word shown
+    words: list      # every Word in the entry (lo/hi index into this)
+    hits: list       # Hit objects merged into this block
+    match: set       # word indices that are part of a match
+
+    @property
+    def best(self) -> float:
+        return max(h.score for h in self.hits)
+
+
+def _entry_words(entry: Entry) -> tuple[list[Word], list[tuple[int, int]]]:
+    """Flatten an entry into words (crossing line boundaries).
+
+    Also returns, per line, the (first, last) word index on that line.
+    """
+    words: list[Word] = []
+    line_range: list[tuple[int, int]] = []
+    for li, line in enumerate(entry.lines):
+        first = len(words)
+        for m in re.finditer(r"\S+", line):
+            words.append(Word(li, m.start(), m.end(), m.group()))
+        line_range.append((first, len(words) - 1))
+    return words, line_range
+
+
+def _hit_word_range(entry, words, line_range, hit) -> tuple[int, int]:
+    """Word indices covered by a hit; falls back to the whole line."""
+    first, last = line_range[hit.line]
+    line = entry.lines[hit.line]
+    if hit.span and len(entry.lower[hit.line]) == len(line):
+        s, e = hit.span
+        idx = [i for i in range(first, last + 1)
+               if words[i].start < e and words[i].end > s]
+        if idx:
+            return idx[0], idx[-1]
+    return first, last
+
+
+def build_word_blocks(entries, hits, before_words, after_words) -> list[WordBlock]:
+    by_entry = defaultdict(list)
+    for h in hits:
+        by_entry[h.entry].append(h)
+
+    blocks: list[WordBlock] = []
+    for ei, hs in by_entry.items():
+        words, line_range = _entry_words(entries[ei])
+        if not words:
+            continue
+        spans = []
+        for h in hs:
+            ws, we = _hit_word_range(entries[ei], words, line_range, h)
+            spans.append((ws, we, h))
+        spans.sort(key=lambda t: (t[0], t[1]))
+
+        last = len(words) - 1
+        cur = None
+        for ws, we, h in spans:
+            lo, hi = max(0, ws - before_words), min(last, we + after_words)
+            if cur and lo <= cur.hi + 1:  # overlapping/touching -> merge
+                cur.hi = max(cur.hi, hi)
+                cur.hits.append(h)
+                cur.match.update(range(ws, we + 1))
+            else:
+                cur = WordBlock(ei, lo, hi, words, [h], set(range(ws, we + 1)))
+                blocks.append(cur)
+    return blocks
+
+
+def _render_word_block(b: WordBlock, num_w: int, st, width) -> str:
+    words, lo, hi = b.words, b.lo, b.hi
+    pieces = []
+    for i in range(lo, hi + 1):
+        w = words[i].text
+        if i in b.match:
+            if i == lo or (i - 1) not in b.match:
+                w = _HL_ON + w
+            if i == hi or (i + 1) not in b.match:
+                w = w + _HL_OFF
+        pieces.append(w)
+    text = " ".join(pieces)
+    if lo > 0:
+        text = "\u2026 " + text
+    if hi < len(words) - 1:
+        text += " \u2026"
+
+    first_line = min(h.line for h in b.hits)
+    prefix = f" > {first_line:>{num_w}}  "
+    wrapped = textwrap.wrap(
+        text, width=max(30, width - len(prefix)), break_long_words=True,
+        break_on_hyphens=False,
+    ) or [""]
+
+    out, in_hl = [], False
+    for i, chunk in enumerate(wrapped):
+        pre = prefix if i == 0 else " " * len(prefix)
+        if in_hl:  # a highlighted run was split across wrapped lines
+            chunk = _HL_ON + chunk
+        in_hl = chunk.rfind(_HL_ON) > chunk.rfind(_HL_OFF)
+        if in_hl:
+            chunk += _HL_OFF
+        if st.on:
+            chunk = (chunk.replace(_HL_ON, f"\x1b[{HL_STYLE}m")
+                          .replace(_HL_OFF, "\x1b[0;2m"))
+            chunk = st.dim(chunk)
+        else:
+            chunk = chunk.replace(_HL_ON, "\u00ab").replace(_HL_OFF, "\u00bb")
+        out.append(pre + chunk)
+    return "\n".join(out)
+
+
 class Style:
     def __init__(self, enabled: bool):
         self.on = enabled
@@ -346,10 +509,14 @@ class Style:
     def head(self, s): return self._w("1;36", s)
     def match(self, s): return self._w("1", s)
     def dim(self, s): return self._w("2", s)
-    def hl(self, s): return self._w("1;33", s)
+    def hl(self, s): return self._w(HL_STYLE, s)
 
 
 _HL_ON, _HL_OFF = "\x00", "\x01"  # survive textwrap, swapped for ANSI later
+# ANSI style for matched words. Reverse video + bold is readable on any
+# terminal theme; for a coloured background try "1;30;43" (black on yellow)
+# or "1;97;41" (white on red).
+HL_STYLE = "1;7"
 
 
 def _render_line(entry, li, num_w, is_match, hit, st, width):
@@ -369,7 +536,7 @@ def _render_line(entry, li, num_w, is_match, hit, st, width):
     for i, chunk in enumerate(wrapped):
         pre = prefix if i == 0 else " " * len(prefix)
         if st.on:
-            chunk = chunk.replace(_HL_ON, "\x1b[1;33m").replace(_HL_OFF, "\x1b[0;1m")
+            chunk = chunk.replace(_HL_ON, f"\x1b[{HL_STYLE}m").replace(_HL_OFF, "\x1b[0;1m")
         body = st.match(chunk) if is_match else st.dim(chunk)
         out.append(pre + body)
     return "\n".join(out)
@@ -383,7 +550,13 @@ def print_results(entries, hits, opts, st):
     total = len(hits)
     hits = sorted(hits, key=lambda h: (-h.score, len(entries[h.entry].lines[h.line]),
                                        h.entry, h.line))[: opts.max_results]
-    blocks = build_blocks(entries, hits, opts.before, opts.after)  # best first
+    extra = {i for i, e in enumerate(entries) if e.kind == "Extra"}
+    blocks = build_blocks(entries, [h for h in hits if h.entry not in extra],
+                          opts.before, opts.after)
+    blocks += build_word_blocks(entries, [h for h in hits if h.entry in extra],
+                                opts.before * WORDS_PER_UNIT,
+                                opts.after * WORDS_PER_UNIT)
+    blocks.sort(key=lambda b: (-b.best, b.entry, b.lo))  # best first
     pages = len({b.entry for b in blocks})
 
     width = min(shutil.get_terminal_size((100, 24)).columns, 110) - 1
@@ -397,8 +570,13 @@ def print_results(entries, hits, opts, st):
     # prompt. The [n] labels are still ranks: [1] is the best match.
     for n, b in reversed(list(enumerate(blocks, 1))):
         e = entries[b.entry]
-        title = f"{e.module}  \u203a  {e.title}"
+        title = f"{e.module}  \u203a  {e.title}" if e.title else e.module
         print(st.head(f"[{n}] {title}") + st.dim(f"   (score {b.best:.0f})"))
+        if isinstance(b, WordBlock):
+            num_w = len(str(len(e.lines) - 1))
+            print(_render_word_block(b, num_w, st, width))
+            print()
+            continue
         num_w = len(str(b.hi))
         if b.lo > 0:
             print(st.dim(" " * (num_w + 5) + "\u2026"))
@@ -416,8 +594,8 @@ def print_results(entries, hits, opts, st):
 
 HELP = """\
 Type text to fuzzy-search. Commands:
-  :b N    lines of context before each match   (now {before})
-  :a N    lines of context after each match    (now {after})
+  :b N    context before each match: N lines (N x 10 words for -i files) (now {before})
+  :a N    context after each match: N lines (N x 10 words for -i files)  (now {after})
   :n N    max matching lines to show           (now {max_results})
   :t N    match threshold 0-100, lower = fuzzier (now {threshold})
   :show   show current settings
@@ -430,7 +608,11 @@ def interactive(entries, opts, st):
         import readline  # noqa: F401  (enables arrow keys / history)
     except ImportError:
         pass
-    print(f"Loaded {len(entries)} pages. Type a search, or :help for commands.")
+    extras = sum(e.kind == "Extra" for e in entries)
+    loaded = f"{len(entries) - extras} pages"
+    if extras:
+        loaded += f" + {extras} extra file{'s' if extras != 1 else ''}"
+    print(f"Loaded {loaded}. Type a search, or :help for commands.")
     while True:
         try:
             q = input("\nsearch> ").strip()
@@ -474,13 +656,18 @@ def main(argv=None) -> int:
     )
     ap.add_argument("-s", "--string", help="text to fuzzy search for")
     ap.add_argument("-b", "--before", type=int, default=0, metavar="N",
-                    help="lines of context to show before each match (default 0)")
+                    help="lines of context to show before each match (default 0); "
+                         "for files from -i this is N x 10 words instead")
     ap.add_argument("-a", "--after", type=int, default=0, metavar="N",
-                    help="lines of context to show after each match (default 0)")
+                    help="lines of context to show after each match (default 0); "
+                         "for files from -i this is N x 10 words instead")
     ap.add_argument("-n", "--max-results", type=int, default=10, metavar="N",
                     help="max matching lines to show (default 10)")
     ap.add_argument("-t", "--threshold", type=float, default=80, metavar="0-100",
                     help="minimum match score, lower = fuzzier (default 80)")
+    ap.add_argument("-i", "--include", metavar="DIR",
+                    help="also search every .txt file in this folder "
+                         "(results show the filename instead of a module name)")
     ap.add_argument("--no-color", action="store_true", help="disable ANSI colours")
     ap.add_argument("root", metavar="ROOT",
                     help="root folder of the course export "
@@ -504,12 +691,16 @@ def main(argv=None) -> int:
     st = Style(use_color)
 
     try:
-        entries = build_entries(load_course(resolve_data_file(opts.root)))
+        data_file = resolve_data_file(opts.root)
+        entries = build_entries(load_course(data_file))
+        if opts.include:
+            entries += load_extra_entries(opts.include)
     except (OSError, ValueError) as err:
         print(f"Error: {err}", file=sys.stderr)
         return 2
     if not entries:
-        print("Error: no pages with content found in that file.", file=sys.stderr)
+        print("Error: no pages with content found in that file "
+              "(and no included .txt files).", file=sys.stderr)
         return 2
 
     if opts.string:
