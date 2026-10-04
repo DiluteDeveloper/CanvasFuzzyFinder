@@ -11,17 +11,21 @@ shows you every matching line along with the **module** and **page** it came
 from, plus as much surrounding context as you ask for.
 
 ```
-$ python canvas_find.py -s "consent and transparency" -b 1 -a 1 ~/courses/ICT101
+$ python canvas_find.py -s "soil" -b 1 -a 1 -n 2 my_gardening_course_example/
+28 matching lines (showing top 2) across 2 pages
 
-1 matching line across 1 page
+[2] Module 3 Composting and soil health  ›  Module 3 Wrap up   (score 100)
+      …
+   3  • Diagnose problems early
+ > 4  • Keep soil covered
+   5  Bring your notes to Assessment 3.
 
-[1] Module 2 Data collection  ›  Module 2.2: Data collection considerations   (score 100)
-       …
-    9  Accuracy: To reduce bias and errors, make sure data is gathered accurately.
- > 10  Consent and Transparency: Let people know about information being collected and how 
-       to utilize it.
-   11  Security and privacy: Prevent unwanted access to sensitive data.
-       …
+[1] Module 1 Understanding your garden site  ›  Module 1 Wrap up   (score 100)
+      …
+   2  • Mapping sunlight and shade
+ > 3  • Sampling and testing soil
+   4  • Spotting microclimates
+      …
 ```
 
 ## Contents
@@ -63,22 +67,23 @@ The tool expects the **root folder** of the export, which must contain
 `viewer/course-data.js`:
 
 ```
-ICT101/                   <- this is the folder you pass in
+my_gardening_course_example/  <- this is the folder you pass in
 └── viewer/
-    ├── course-data.js    <- the data file the tool reads
+    ├── course-data.js        <- the data file the tool reads
     └── files/ ...
 ```
 
 Run one search and exit:
 
 ```bash
-python canvas_find.py -s "sampling strategies" path/to/ICT101
+python canvas_find.py -s "soil type"
+my_gardening_course_example/
 ```
 
 Or start an interactive session and search as many times as you like:
 
 ```bash
-python canvas_find.py path/to/ICT101
+python canvas_find.py my_gardening_course_example/
 ```
 
 ## Usage
@@ -137,16 +142,16 @@ in interactive mode.
 A typical session:
 
 ```
-$ python canvas_find.py path/to/ICT101
+$ python canvas_find.py my_gardening_course_example/
 Loaded 95 pages. Type a search, or :help for commands.
 
-search> sampling
+search> dirt
 ...results...
 search> :a 2
 OK
 search> :t 70
 OK
-search> sampling
+search> soil
 ...more, looser results, with 2 lines of context after each...
 search> :q
 ```
@@ -157,9 +162,10 @@ A summary line comes first: how many lines matched, how many are being shown,
 and across how many pages. Then come the results, in **blocks**.
 
 ```
-[2] Module 2 Data collection  ›  Module 2.2: Data collection considerations   (score 98)
+[5] Module 2 Planning your layout  ›  2.4 Succession Planting   (score 82)
       …
- > 2  ## What are data collection considerations?
+ > 2  Succession planting spreads your harvest over a longer season so you are not buried in lettuces
+      for one week and bare soil the next.
       …
 ```
 
@@ -246,40 +252,25 @@ usually more specific than a long paragraph containing the same words.
 Search for a phrase, tolerating typos:
 
 ```bash
-python canvas_find.py -s "data colection considerations" ~/courses/ICT101
+python canvas_find.py -s "plants" my_gardening_course_example/
 ```
 
 Show two lines before and three after each match:
 
 ```bash
-python canvas_find.py -s "consent and transparency" -b 2 -a 3 ~/courses/ICT101
+python canvas_find.py -s "plants" -b 2 -a 3 my_gardening_course_example/
 ```
 
-Find a page by its title:
+Find a page by its title and get the first three results:
 
 ```bash
-python canvas_find.py -s "Module 2.2" -n 3 ~/courses/ICT101
+python canvas_find.py -s "Module 2.2" -n 3 my_gardening_course_example/
 ```
 
 Be more forgiving and show more results:
 
 ```bash
-python canvas_find.py -s "dashbord" -t 70 -n 25 ~/courses/ICT101
-```
-
-Page through a long result set (best result last; press `G` in `less` to jump
-to it):
-
-```bash
-python canvas_find.py -s "data" -n 100 --no-color ~/courses/ICT101 | less
-```
-
-Use it in a script (the exit status tells you whether anything matched):
-
-```bash
-if python canvas_find.py -s "privacy" --no-color ~/courses/ICT101 > /dev/null; then
-    echo "mentioned somewhere"
-fi
+python canvas_find.py -s "dashbord" -t 70 -n 25 my_gardening_course_example/
 ```
 
 ## Exit codes
