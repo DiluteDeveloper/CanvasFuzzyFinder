@@ -322,7 +322,7 @@ the tool stops quietly with no error message.
 
 ## AI Acknowledgement
 
-This tool and the following documentation was entirely created with Claude;
+This tool and most of the preceding documentation was entirely created with Claude;
 I have been in software engineering since 2018 and I have the experience 
 to develop a tool like this, however, as this is a tool I am personally 
 needing to use quickly, I made the choice to vibe-code it.
