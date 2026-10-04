@@ -314,7 +314,7 @@ the tool stops quietly with no error message.
 | --- | --- |
 | `.../viewer/course-data.js not found. Is '...' the root folder of the course export?` | `ROOT` exists but doesn't contain `viewer/course-data.js`. Check you're pointing at the folder *above* `viewer/`. |
 | `The program 'python' is not in your PATH.` | Python may not been installed correctly. on some systems, the command may be `python3` instead. |
-| `python is not recognized as an internal or external command, operable program or batch file.` | Python may not been installed correctly. on some systems, the command is `python3` instead. |
+| `python is not recognized as an internal or external command, operable program or batch file.` | Python may not been installed correctly. on some systems, the command is may be `python3` instead. |
 | `'...' does not exist.` | The path is wrong or misspelled. |
 | `Could not find a JSON object in ...` | The file isn't in the expected `window.COURSE_DATA = {...};` format, or is truncated or corrupt. |
 | `no pages with content found in that file.` | The JSON loaded but has no pages with a `title` and `content`. |
