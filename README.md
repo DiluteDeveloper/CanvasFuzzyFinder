@@ -1,17 +1,10 @@
 # CanvasFuzzyFinder
 
+Disclaimer: **This tool is in no way affiliated with the University of
+the Sunshine Coast.**
+
 Fuzzy-search the text of an offline **Canvas LMS course export**.
 This has only been tested on UniSC Canvas module pages.
-Disclaimer: **This tool is in no way affiliated with the University of
-the Sunshine Coast**
-This tool and the following documentation was entirely created with Claude;
-I have been in software engineering since 2018 and I have the experience 
-to develop a tool like this, however, as this is a tool I am personally 
-needing to use quickly, I made the choice to vibe-code it.
-With that being said, please do not consider the quality of this tool
-a reflection of my abilities; this is simply posted so that others may
-use it; I have not checked over this code at all and am simply using
-the tool that Claude generated with my prompts and guidance.
 
 Point it at the export's root folder, type something (typos are fine), and it
 shows you every matching line along with the **module** and **page** it came
@@ -44,6 +37,7 @@ $ python canvas_find.py -s "consent and transparency" -b 1 -a 1 ~/courses/ICT101
 - [Exit codes](#exit-codes)
 - [Limitations and tips](#limitations-and-tips)
 - [Troubleshooting](#troubleshooting)
+- [AI Acknowledgement](#ai-acknowledgement)
 
 ## Requirements
 
@@ -325,3 +319,14 @@ the tool stops quietly with no error message.
 | `the following arguments are required: ROOT` | You forgot the folder argument. It must come last. |
 | Garbled characters (for example `â€º` instead of `›`) | The tool always writes UTF-8, so your terminal is set to a different encoding. Switch the terminal to UTF-8. |
 | `No matches.` | Nothing scored at or above the threshold. Lower `-t` or shorten the query. |
+
+## AI Acknowledgement
+
+This tool and the following documentation was entirely created with Claude;
+I have been in software engineering since 2018 and I have the experience 
+to develop a tool like this, however, as this is a tool I am personally 
+needing to use quickly, I made the choice to vibe-code it.
+With that being said, please do not consider the quality of this tool
+a reflection of my abilities; this is simply posted so that others may
+use it; I have not checked over this code at all and am simply using
+the tool that Claude generated with my prompts and guidance.
